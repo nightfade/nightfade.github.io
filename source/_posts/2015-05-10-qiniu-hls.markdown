@@ -1,0 +1,136 @@
+title: 使用七牛云存储实现HLS在线视频授权播放
+date: 2015-05-10 07:12:12
+tags: HLS, qiniu, node
+---
+# 使用七牛云存储实现HLS在线视频授权播放
+
+本文主要利用七牛云存储和node.js实现基于HLS的在线视频授权播放。
+
+## 1. 关于HLS格式
+
+定义可参考[wikipedia定义](http://en.wikipedia.org/wiki/HTTP_Live_Streaming)。简单来说：
+> HTTP Live Streaming是由Apple提出的基于HTTP的流媒体传输协议。 它将一整个音视频流切割成可由HTTP下载的一个个小的音视频流，并生成一个播放列表（M3U8），客户端只需要获取资源的 M3U8 播放列表即可播放音视频。
+
+## 2. 基本流程
+
+我们希望实现的是私有在线视频播放，所以首先需要在七牛建立一个私有空间。令我们视频所在的私有`bucket`名称是`privatebucket`，上传视频的`key`是`example.mp4`，并且希望分片之后的`m3u8`文件也位于`privatebucket`空间内，`key`是`example.m3u8`
+
+1. 首先向七牛上传我们自己的视频。
+
+2. 利用七牛的[音视频分片API](http://developer.qiniu.com/docs/v6/api/reference/fop/av/segtime.html)将视频切割成HLS分片格式。在此以七牛的命令行客户端[qrsctl](http://developer.qiniu.com/docs/v6/tools/qrsctl.html)为例调用该API：
+
+```bash
+# 目标路径的EncodedEntryURI格式
+entry=`echo "privatebucket:example.m3u8" | base64 | tr "+/" "-_"`
+# 视频分片触发持久化处理（pfop）
+./qboxrsctl pfop privatebucket example.mp4 "avthumb/m3u8/ab/320k/r/24|saveas/$entry" 
+```
+至此，已经完成分片的视频的`example.m3u8`文件已经位于我们的`privatebucket`空间中了。
+
+3. 在自己的服务器中实现视频播放列表`example.m3u8`和相应切片文件的授权访问。
+
+七牛详细下载授权文档参见[七牛下载凭证文档](http://developer.qiniu.com/docs/v6/api/reference/security/download-token.html)。
+
+本文以node.js实现为例:
+
+```javascript
+app.get('/video', function(req, res) {
+  // 0. 在这里进行授权验证
+  // TODO: authorization
+
+  // 1. 获取原始下载URL
+  var rawDownloadURL = req.query.url;
+  
+  // 2. 为下载URL加上过期时间，这里设为1天
+  var today = new Date();
+  var tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate()+1);
+  var unixTime = Math.floor(tomorrow.getTime() / 1000);
+  rawDownloadURL = rawDownloadURL + "?pm3u8/0/expires/86400&e=" + unixTime.toString();
+  
+  // 3. 对上一步得到的URL字符串计算HMAC-SHA1签名（假设SecretKey是MY_SECRET_KEY）
+  // 并对结果做URL安全的Base64编码
+  var sign = crypto.createHmac('sha1', 'MY_SECRET_KEY')
+      .update(rawDownloadURL)
+      .digest()
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+      
+  // 4. 将AccessKey（假设是MY_ACCESS_KEY）与上一步计算得到的结果以“:”连接起来
+  var token = ['MY_ACCESS_KEY', sign].join(':');
+  
+  // 5. 将下载凭证添加到含过期时间参数的下载URL之后，作为最后一个参数（token参数）
+  var realDownloadURL = rawDownloadURL + "&token=" + token;
+  
+  res.end(realDownloadURL);
+});
+```
+
+这里需要解释一下URL拼接`rawDownloadURL = rawDownloadURL + "?pm3u8/0/expires/86400&e=" + unixTime.toString();`中加入的`pm3u8/0`选项。
+
+因为除了要对`.m3u8`播放列表文件实现授权访问之外，每个片段资源也同样处在私有空间里，所以每个分片也必须进行下载授权，即要求对`.m3u8`文件里的每一个URL进行授权。七牛云提供的`pm3u8`接口就是用来实现这一功能：
+
+假设已有如下m3u8文件（保存在私有空间中）：`http://developer.qiniu.com/samples/live_net.m3u8`
+
+```
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-ALLOW-CACHE:YES
+#EXT-X-TARGETDURATION:31
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00000_.ts
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00001_.ts
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00002_.ts
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00003_.ts
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00004_.ts
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00005_.ts
+#EXTINF:30.827000,
+http://developer.qiniu.com/samples/fop/av/live_00006_.ts
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00007_.ts
+#EXTINF:30.827000,
+http://developer.qiniu.com/samples/fop/av/live_00008_.ts
+#EXTINF:25.149000,
+http://developer.qiniu.com/samples/fop/av/live_00009_.ts
+#EXT-X-ENDLIST
+```
+
+那么在浏览器中键入如下URL即可得到相应的授权m3u8文件：`http://developer.qiniu.com/samples/live_net.m3u8?pm3u8/0&e=1388734117&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:sKjXkO59AxPtdaO2cEtWtiHmzdo=`
+
+```
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-ALLOW-CACHE:YES
+#EXT-X-TARGETDURATION:31
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00000_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:qhXZvVauNafcUMoBeo4SkRWaWiw
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00001_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:h1Oy8oW7oAIOGWZP8QNVAPI82Vw
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00002_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:OQ6GMLEjFRnCAne9K9YU8-tXeIg
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00003_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:XWdLiYgUxNZbqikNLQ3joG3Mvhk
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00004_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:3EKOMwcqSUWsdap3SaY4l3RoaCg
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00005_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:j4uORlTKDBHk4Xwkv90eCM3I87U
+#EXTINF:30.827000,
+http://developer.qiniu.com/samples/fop/av/live_00006_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:tp7CjnEBGxGHkDbRqd8OehlGSno
+#EXTINF:30.826000,
+http://developer.qiniu.com/samples/fop/av/live_00007_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:QxYkdqWEAYj90kgX5jUPedFxXVo
+#EXTINF:30.827000,
+http://developer.qiniu.com/samples/fop/av/live_00008_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:MQ7EDzKP2f_EtpXq-maGr88mazA
+#EXTINF:25.149000,
+http://developer.qiniu.com/samples/fop/av/live_00009_.ts?e=1388773727&token=u8WqmQu1jH21kxpIQmo2LqntzugM1VoHE9_pozCU:jmx4dIZndnrNFqzLg72YZM-qtmY
+#EXT-X-ENDLIST
+```
+
+至此，基于HLS流媒体视频的授权播放流程就已经完成了，只需要在`app.get('/video', function(){});`中实现自己的授权验证逻辑即可。
