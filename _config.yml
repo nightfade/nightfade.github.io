@@ -4,7 +4,7 @@
 
 # Site
 title: "Nightfade's Techlog"
-subtitle:
+subtitle: Programming
 description:
 author: Nightfade
 email:
@@ -85,6 +85,6 @@ exclude_generator:
 # Deployment
 ## Docs: http://hexo.io/docs/deployment.html
 deploy:
-  type: github
+  type: git
   repository: https://github.com/nightfade/nightfade.github.io.git
   branch: master
