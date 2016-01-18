@@ -2,13 +2,18 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>http://nightfade.github.io/2015/05/10/qiniu-hls/</loc>
-    <lastmod>2016-01-18T08:12:15.000Z</lastmod>
+    <loc>http://nightfade.github.io/2015/09/15/cpp1x-atomic/</loc>
+    <lastmod>2016-01-18T08:30:17.000Z</lastmod>
   </url>
   
   <url>
-    <loc>http://nightfade.github.io/2015/09/15/cpp1x-atomic/</loc>
-    <lastmod>2016-01-18T08:04:26.000Z</lastmod>
+    <loc>http://nightfade.github.io/about/index.html</loc>
+    <lastmod>2016-01-18T08:24:20.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/05/10/qiniu-hls/</loc>
+    <lastmod>2016-01-18T08:12:15.000Z</lastmod>
   </url>
   
   <url>
@@ -74,11 +79,6 @@
   <url>
     <loc>http://nightfade.github.io/2013/12/07/building-cross-platform-project-using-cmake/</loc>
     <lastmod>2016-01-18T08:02:41.000Z</lastmod>
-  </url>
-  
-  <url>
-    <loc>http://nightfade.github.io/about/index.html</loc>
-    <lastmod>2016-01-18T05:08:19.000Z</lastmod>
   </url>
   
 </urlset>

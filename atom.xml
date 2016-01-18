@@ -4,7 +4,7 @@
   <subtitle><![CDATA[Programming]]></subtitle>
   <link href="/atom.xml" rel="self"/>
   <link href="http://nightfade.github.io/"/>
-  <updated>2016-01-18T08:04:26.000Z</updated>
+  <updated>2016-01-18T08:30:17.000Z</updated>
   <id>http://nightfade.github.io/</id>
   
   <author>
@@ -19,7 +19,7 @@
     <link href="http://nightfade.github.io/2015/09/15/cpp1x-atomic/"/>
     <id>http://nightfade.github.io/2015/09/15/cpp1x-atomic/</id>
     <published>2015-09-15T03:36:00.000Z</published>
-    <updated>2016-01-18T08:04:26.000Z</updated>
+    <updated>2016-01-18T08:30:17.000Z</updated>
     <content type="html"><![CDATA[<p>本文主要总结了《<a href="http://www.parallellabs.com/2010/03/06/why-should-programmer-care-about-sequential-consistency-rather-than-cache-coherence/" target="_blank" rel="external">为什么程序员需要关心顺序一致性（Sequential Consistency）而不是Cache一致性（Cache Coherence？）</a>》，《<a href="http://www.parallellabs.com/2011/08/27/c-plus-plus-memory-model/" target="_blank" rel="external">浅析C++多线程内存模型</a>》，《<a href="http://gcc.gnu.org/wiki/Atomic/GCCMM/AtomicSync" target="_blank" rel="external">Memory model synchronization modes</a>》，《<a href="http://en.cppreference.com/w/cpp/atomic/memory_order" target="_blank" rel="external">std::memory_order</a>》</p>
 <h1 id="Sequential_Consistency"><a href="#Sequential_Consistency" class="headerlink" title="Sequential Consistency"></a>Sequential Consistency</h1><h2 id="u4EC0_u4E48_u662FSequential_Consistency"><a href="#u4EC0_u4E48_u662FSequential_Consistency" class="headerlink" title="什么是Sequential Consistency"></a>什么是<code>Sequential Consistency</code></h2><p><code>Sequential Consistency</code>的作者Lamport给的严格定义是：</p>
 <blockquote>
@@ -47,10 +47,6 @@
 <tr>
 <td style="text-align:center">r1 = y</td>
 <td style="text-align:center">r2 = x</td>
-</tr>
-<tr>
-<td style="text-align:center"><strong><strong><em>__</em></strong></strong></td>
-<td style="text-align:center"><strong><strong><em>__</em></strong></strong></td>
 </tr>
 </tbody>
 </table>
@@ -89,11 +85,6 @@
 <td style="text-align:center">结果: r1 == 1 and r2 == 0</td>
 <td style="text-align:center">结果: r1 == 1 and r2 == 1</td>
 </tr>
-<tr>
-<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
-<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
-<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
-</tr>
 </tbody>
 </table>
 <p>上面三种情况并没包括所有可能的执行顺序，但是它们已经包括所有可能出现的结果了，所以我们只举上面三个例子。我们注意到这个程序只可能出现上面三种结果，但是不可能出现<code>r1==0 and r2==0</code>的情况。</p>
@@ -115,10 +106,6 @@
 <tr>
 <td style="text-align:center">x = 1;</td>
 <td style="text-align:center">r2 = x;</td>
-</tr>
-<tr>
-<td style="text-align:center"><strong><strong>___</strong></strong></td>
-<td style="text-align:center"><strong><strong>___</strong></strong></td>
 </tr>
 </tbody>
 </table>

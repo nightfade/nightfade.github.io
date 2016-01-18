@@ -26,10 +26,6 @@
 <td style="text-align:center">r1 = y</td>
 <td style="text-align:center">r2 = x</td>
 </tr>
-<tr>
-<td style="text-align:center"><strong><strong><em>__</em></strong></strong></td>
-<td style="text-align:center"><strong><strong><em>__</em></strong></strong></td>
-</tr>
 </tbody>
 </table>
 <p>因为多线程程序是交错执行的，所以程序可能有如下几种执行顺序：</p>
@@ -67,11 +63,6 @@
 <td style="text-align:center">结果: r1 == 1 and r2 == 0</td>
 <td style="text-align:center">结果: r1 == 1 and r2 == 1</td>
 </tr>
-<tr>
-<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
-<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
-<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
-</tr>
 </tbody>
 </table>
 <p>上面三种情况并没包括所有可能的执行顺序，但是它们已经包括所有可能出现的结果了，所以我们只举上面三个例子。我们注意到这个程序只可能出现上面三种结果，但是不可能出现<code>r1==0 and r2==0</code>的情况。</p>
@@ -93,10 +84,6 @@
 <tr>
 <td style="text-align:center">x = 1;</td>
 <td style="text-align:center">r2 = x;</td>
-</tr>
-<tr>
-<td style="text-align:center"><strong><strong>___</strong></strong></td>
-<td style="text-align:center"><strong><strong>___</strong></strong></td>
 </tr>
 </tbody>
 </table>
