@@ -1,10 +1,11 @@
----
-categories: 'Tools CMake'
 comments: true
 date: 2013-12-07 20:01:32 +0800
 layout: post
 status: public
 title: 'Building Cross-platform Project Using CMake'
+tags: 
+- Tools
+- CMake
 ---
 
 ## Why CMake ##

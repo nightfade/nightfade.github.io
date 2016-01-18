@@ -1,9 +1,10 @@
----
 layout: post
 title: "关于Actor模型与游戏编程的一点想法"
 date: 2013-12-20 22:28:32 +0800
 comments: true
-categories: GameDev Actor
+tags: 
+- GameDev
+- Actor
 ---
 
 在读*gevent*的tutorial的时候，一段关于Actor模型的简要描述引起了我的注意：

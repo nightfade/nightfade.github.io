@@ -1,5 +1,5 @@
----
-categories: Python
+tags: 
+- Python
 comments: true
 date: 2013-12-12 23:47:23 +0800
 layout: post

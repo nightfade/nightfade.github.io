@@ -1,5 +1,7 @@
----
-categories: 'protobuf RPC Network'
+tags: 
+- protobuf
+- RPC
+- Network
 comments: true
 date: 2013-12-15 11:12:41 +0800
 layout: post

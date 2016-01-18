@@ -1,8 +1,11 @@
+layout: post
 title: 使用七牛云存储实现HLS在线视频授权播放
 date: 2015-05-10 07:12:12
-tags: HLS, qiniu, node
+tags: 
+- HLS
+- qiniu
+- node
 ---
-# 使用七牛云存储实现HLS在线视频授权播放
 
 本文主要利用七牛云存储和node.js实现基于HLS的在线视频授权播放。
 

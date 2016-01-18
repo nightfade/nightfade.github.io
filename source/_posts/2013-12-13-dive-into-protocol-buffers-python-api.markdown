@@ -1,5 +1,6 @@
----
-categories: 'Python protobuf'
+tags: 
+- Python
+- protobuf
 comments: true
 date: 2013-12-13 23:01:13 +0800
 layout: post

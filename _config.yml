@@ -3,12 +3,12 @@
 ## Source: https://github.com/hexojs/hexo/
 
 # Site
-title: Nightfade's Blog
+title: "Nightfade's Techlog"
 subtitle:
 description:
 author: Nightfade
 email:
-language: zh-Hans
+language: zh-CN
 
 # URL
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
@@ -79,7 +79,7 @@ disqus_shortname: nightfade
 # Extensions
 ## Plugins: https://github.com/hexojs/hexo/wiki/Plugins
 ## Themes: https://github.com/hexojs/hexo/wiki/Themes
-theme: athena
+theme: maupassant
 exclude_generator:
 
 # Deployment

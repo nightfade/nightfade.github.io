@@ -1,5 +1,5 @@
----
-categories: OperatingSystem
+tags: 
+- Operating System
 comments: true
 date: 2013-12-07 11:13:54 +0800
 layout: post
