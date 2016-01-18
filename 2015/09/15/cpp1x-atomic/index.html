@@ -1,0 +1,155 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description"><title>多线程内存模型和C++1x Atomic | Nightfade's Techlog</title><link rel="stylesheet" type="text/css" href="/css/normalize.css"><link rel="stylesheet" type="text/css" href="/css/pure-min.css"><link rel="stylesheet" type="text/css" href="/css/grids-responsive-min.css"><link rel="stylesheet" type="text/css" href="/css/style.css"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><link rel="alternate" type="application/atom+xml" href="/atom.xml"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">多线程内存模型和C++1x Atomic</h1><a id="logo" href="/.">Nightfade's Techlog</a><p class="description"></p></div><div id="nav-menu"><a href="/." class="current"><i class="icon-home"> 首页</i></a><a href="/archives/"><i class="icon-archive"> 归档</i></a><a href="/about/"><i class="icon-about"> 关于</i></a><a href="/atom.xml"><i class="icon-rss"> 订阅</i></a></div></div><div id="layout" class="pure-g"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post post-page"><h1 class="post-title">多线程内存模型和C++1x Atomic</h1><div class="post-meta">Sep 15 2015 | </div><span data-disqus-identifier="2015/09/15/cpp1x-atomic/" class="disqus-comment-count"></span><div class="post-content"><p>本文主要总结了《<a href="http://www.parallellabs.com/2010/03/06/why-should-programmer-care-about-sequential-consistency-rather-than-cache-coherence/" target="_blank" rel="external">为什么程序员需要关心顺序一致性（Sequential Consistency）而不是Cache一致性（Cache Coherence？）</a>》，《<a href="http://www.parallellabs.com/2011/08/27/c-plus-plus-memory-model/" target="_blank" rel="external">浅析C++多线程内存模型</a>》，《<a href="http://gcc.gnu.org/wiki/Atomic/GCCMM/AtomicSync" target="_blank" rel="external">Memory model synchronization modes</a>》，《<a href="http://en.cppreference.com/w/cpp/atomic/memory_order" target="_blank" rel="external">std::memory_order</a>》</p>
+<h1 id="Sequential_Consistency"><a href="#Sequential_Consistency" class="headerlink" title="Sequential Consistency"></a>Sequential Consistency</h1><h2 id="u4EC0_u4E48_u662FSequential_Consistency"><a href="#u4EC0_u4E48_u662FSequential_Consistency" class="headerlink" title="什么是Sequential Consistency"></a>什么是<code>Sequential Consistency</code></h2><p><code>Sequential Consistency</code>的作者Lamport给的严格定义是：</p>
+<blockquote>
+<p>… the result of any execution is the same as if the operations of all the processors were executed in some sequential order, and the operations of each individual processor appear in this sequence in the order specified by its program.</p>
+</blockquote>
+<p><code>Sequential Consistency</code>其实就是规定了两件事情：</p>
+<ol>
+<li>每个线程内部的指令都是按照程序规定的顺序（program order）执行的（单个线程的视角）。</li>
+<li>线程执行的交错顺序可以是任意的，但是所有线程所看见的整个程序的总体执行顺序都是一样的（整个程序的视角）。</li>
+</ol>
+<p>假设我们有两个线程（线程1和线程2）分别运行在两个CPU上，有两个初始值为0的全局共享变量x和y，两个线程分别执行下面两条指令：</p>
+<p>初始条件：<code>x = y = 0;</code></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">线程1</th>
+<th style="text-align:center">线程2 </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">x = 1</td>
+<td style="text-align:center">y = 1</td>
+</tr>
+<tr>
+<td style="text-align:center">r1 = y</td>
+<td style="text-align:center">r2 = x</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong><strong><em>__</em></strong></strong></td>
+<td style="text-align:center"><strong><strong><em>__</em></strong></strong></td>
+</tr>
+</tbody>
+</table>
+<p>因为多线程程序是交错执行的，所以程序可能有如下几种执行顺序：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Execution 1</th>
+<th style="text-align:center">Execution 2</th>
+<th style="text-align:center">Execution 3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">x = 1;</td>
+<td style="text-align:center">y = 1;</td>
+<td style="text-align:center">x = 1;</td>
+</tr>
+<tr>
+<td style="text-align:center">r1 = y;</td>
+<td style="text-align:center">r2 = x;</td>
+<td style="text-align:center">y = 1;</td>
+</tr>
+<tr>
+<td style="text-align:center">y = 1;</td>
+<td style="text-align:center">x = 1;</td>
+<td style="text-align:center">r1 = y;</td>
+</tr>
+<tr>
+<td style="text-align:center">r2 = x;</td>
+<td style="text-align:center">r1 = y;</td>
+<td style="text-align:center">r2 = x;</td>
+</tr>
+<tr>
+<td style="text-align:center">结果:r1==0 and r2 == 1</td>
+<td style="text-align:center">结果: r1 == 1 and r2 == 0</td>
+<td style="text-align:center">结果: r1 == 1 and r2 == 1</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
+<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
+<td style="text-align:center"><strong><strong><strong><strong><strong><strong>__</strong></strong></strong></strong></strong></strong></td>
+</tr>
+</tbody>
+</table>
+<p>上面三种情况并没包括所有可能的执行顺序，但是它们已经包括所有可能出现的结果了，所以我们只举上面三个例子。我们注意到这个程序只可能出现上面三种结果，但是不可能出现<code>r1==0 and r2==0</code>的情况。</p>
+<p>其实说简单点，SC就是我们最容易理解的那个多线程程序执行顺序的模型。</p>
+<h2 id="u4E3A_u4EC0_u4E48_u8981_u5173_u5FC3Sequential_Consistency"><a href="#u4E3A_u4EC0_u4E48_u8981_u5173_u5FC3Sequential_Consistency" class="headerlink" title="为什么要关心Sequential Consistency"></a>为什么要关心<code>Sequential Consistency</code></h2><p>现在的CPU和编译器会对代码做各种各样的优化，有时候它们可能会为了优化性能而把程序员在写程序时规定的代码执行顺序(program order)打乱。<br>例如编译器可能会做如下优化，即把线程1的两条语序调换执行顺序：</p>
+<p>初始条件：<code>x = y = 0;</code></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">线程 1</th>
+<th style="text-align:center">线程 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">r1 = y;</td>
+<td style="text-align:center">y=1;</td>
+</tr>
+<tr>
+<td style="text-align:center">x = 1;</td>
+<td style="text-align:center">r2 = x;</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong><strong>___</strong></strong></td>
+<td style="text-align:center"><strong><strong>___</strong></strong></td>
+</tr>
+</tbody>
+</table>
+<p>那么这个时候程序如果按如下顺序执行就可能就会出现<code>r1==r2==0</code>这样程序员认为”不正确“的结果：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Execution 4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">r1 = y;</td>
+</tr>
+<tr>
+<td style="text-align:center">y = 1;</td>
+</tr>
+<tr>
+<td style="text-align:center">r2 = x;</td>
+</tr>
+<tr>
+<td style="text-align:center">x = 1;</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong><strong><strong>_</strong></strong></strong></td>
+</tr>
+</tbody>
+</table>
+<p>为什么编译器会做这样的优化呢？因为读一个在内存中而不是在cache中的共享变量需要很多周期，所以编译器就”自作聪明“的让读操作先执行，从而隐藏掉一些指令执行的latency，提高程序的性能。实际上这种类似的技术是在单核时代非常普遍的优化方法，但是在进入多核时代后编译器没跟上发展，导致了对多线程程序进行了违反SC的错误优化。</p>
+<p>我们发现为了保证多线程的正确性，我们希望程序能按照SC模型执行；但是SC的对性能的损失太大了，CPU硬件和编译器为了提高性能就必须要做优化啊！为了既保证正确性又保证性能，在经过十几年的研究后一个新的新的模型出炉了：sequential consistency for data race free programs。简单地说这个模型的原理就是对没有data race的程序可以保证它是遵循SC的，这个模型在多线程程序的正确性和性能间找到了一个平衡点。</p>
+<p>说简单点，就是由程序员用同步原语（例如锁或者atomic的同步变量）来保证你程序是没有data race的，这样CPU和编译器就会保证你程序是按你所想的那样执行的（即SC），是正确的。换句话说，程序员只需要恰当地使用具有<code>acquire</code>和<code>release</code>语义的同步原语标记那些真正需要同步的变量和操作，就等于告诉CPU和编译器你们不要对这些标记出来的操作和变量做违反SC的优化，而其它未被标记的地方你们可以随便优化，这样既保证了正确性又保证了CPU和编译器可以做尽可能多的性能优化。</p>
+<p>从根源上来讲，在串行时代，编译器和CPU对代码所进行的乱序执行的优化对程序员都是封装好了的，无痛的，所以程序员不需要关心这些代码在执行时被乱序成什么样子，因为这些都被编译器和CPU封装起来了，你不用担心内部细节，它最终表现出来的行为就是按你想要的那种方式执行的。但是进入多核时代，程序员、编译器、CPU三者之间未能达成一致，所以CPU、编译器就会时不时地给你捣蛋，故作聪明的做一些优化，让你的程序不会按照你想要的方式执行，是错误的。</p>
+<h1 id="C++1x_u4E2D_u5F15_u5165_u7684atomic_u7C7B_u578B"><a href="#C++1x_u4E2D_u5F15_u5165_u7684atomic_u7C7B_u578B" class="headerlink" title="C++1x中引入的atomic类型"></a>C++1x中引入的<code>atomic</code>类型</h1><p>C++1x除了提供传统的锁、条件变量等同步机制之外，还引入了新的<code>atomic</code>类型。相对于传统的<code>mutex</code>锁来说，<code>atomic</code>类型更底层，具备更好的性能，因此能用于实现诸如Lock Free等高性能并行算法。</p>
+<p>对常见的数据类型，C++1x都提供了与之相对应的<code>atomic</code>类型。以<code>bool</code>类型举例，与之相对应的<code>atomic_bool</code>类型具备两个新属性：原子性与顺序性。顾名思义，原子性的意思是说<code>atomic_bool</code>的操作都是不可分割的，原子的；而顺序性则指定了对该变量的操作何时对其他线程可见。</p>
+<p>在C++1x中，为了满足对性能的追求，<code>atomic</code>类型提供了三种顺序属性：<code>sequential consistency ordering</code>（即顺序一致性），<code>acquire release ordering</code>以及<code>relaxed ordering</code>。因为<code>sequential consistency</code>是最易理解的模型，所以默认情况下所有<code>atomic</code>类型的操作都会使<code>sequential consistency</code>顺序。当然，顺序一致性的性能相对来说比较差，所以程序员还可以使用对顺序性要求稍弱一些的<code>acquire release ordering</code>与最弱的<code>relaxed ordering</code>。</p>
+<p>在下面这个例子中，<code>atomic_bool</code>类型的变量<code>data_ready</code>就被用来实现两个线程间的同步操作。需要注意的是，对<code>data_ready</code>的写操作仍然可以通过直接使用赋值操作符（即“<code>=</code>”）来进行，但是对其的读操作就必须调用<code>load()</code>函数来进行。在默认的情况下，所有<code>atomic</code>类型变量的顺序性都是顺序一致性（即sequential consistency）。在这个例子中，因为<code>data_ready</code>的顺序性被规定为顺序一致性，所以线程1中对<code>data_ready</code>的写操作会与线程2中对<code>data_ready</code>的读操作构建起<code>synchronize-with</code>的同步关系，即#2-&gt;#3。又因为<code>writer_thread()</code>中的代码顺序规定了#1在#2之前发生，即#1-&gt;#2；而且<code>reader_thread</code>中的代码顺序规定了#3-&gt;#4，所以就有了#1-&gt;#2-&gt;#3-&gt;#4这样的顺序关系，从而可以保证在#4中读取<code>data</code>的值时，#1已经执行完毕，即#4一定能读到#1写入的值（10）。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="preprocessor">#<span class="keyword">include</span> <span class="string">&lt;atomic&gt;</span></span></span><br><span class="line"><span class="preprocessor">#<span class="keyword">include</span> <span class="string">&lt;vector&gt;</span></span></span><br><span class="line"><span class="preprocessor">#<span class="keyword">include</span> <span class="string">&lt;iostream&gt;</span></span></span><br><span class="line"> </span><br><span class="line"><span class="built_in">std</span>::<span class="built_in">vector</span>&lt;<span class="keyword">int</span>&gt; data;</span><br><span class="line"><span class="built_in">std</span>::<span class="function"><span class="keyword">atomic_bool</span> <span class="title">data_ready</span><span class="params">(<span class="literal">false</span>)</span></span>;</span><br><span class="line"> </span><br><span class="line"><span class="comment">// 线程1</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">writer_thread</span><span class="params">()</span></span><br><span class="line"></span>&#123;</span><br><span class="line">    data.push_back(<span class="number">10</span>); <span class="comment">// #1：对data的写操作</span></span><br><span class="line">    data_ready = <span class="literal">true</span>; <span class="comment">// #2：对data_ready的写操作</span></span><br><span class="line">&#125;</span><br><span class="line"> </span><br><span class="line"><span class="comment">// 线程2</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">reader_thread</span><span class="params">()</span></span><br><span class="line"></span>&#123;</span><br><span class="line">    <span class="keyword">while</span>(!data_ready.load()) <span class="comment">// #3：对data_ready的读操作</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="built_in">std</span>::this_thread::sleep(<span class="built_in">std</span>::milliseconds(<span class="number">10</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="built_in">std</span>::<span class="built_in">cout</span> &lt;&lt; ”data is ” &lt;&lt; data[<span class="number">0</span>] &lt;&lt; ”\n”; <span class="comment">// #4：对data的读操作</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>相信很多朋友会纳闷，这样的执行顺序不是显然的么？其实不然。如果我们把<code>data_ready</code>的顺序性制定为<code>relaxed ordering</code>的话，编译器和CPU就可以自由地做违反顺序一致性的乱序优化，从而导致#1不一定在#2之前被执行，最终导致#4中读到的<code>data</code>的值不为10。</p>
+<p>简单的来说，在<code>atomic</code>类型提供的三种顺序属性中，<code>acquire release ordering</code>对顺序性的约束程度介于<code>sequential consistency</code>（顺序一致性）和<code>relaxed ordering</code>之间，因为它不要求全局一致性，但是具有<code>synchronized with</code>的关系。<code>Relaxed ordering</code>最弱，因为它对顺序性不做任何要求。由此可见，除非非常必要，我们一般不建议使用<code>relaxed ordering</code>，因为这不能保证任何顺序性。<br>对于<code>atomic</code>的<code>memory ordering</code>理解起来相对复杂一些，可以参考如下两个链接：<br>《<a href="http://gcc.gnu.org/wiki/Atomic/GCCMM/AtomicSync" target="_blank" rel="external">Memory model synchronization modes</a>》<br>《<a href="http://en.cppreference.com/w/cpp/atomic/memory_order" target="_blank" rel="external">std::memory_order</a>》<br>简单（简陋）的总结一下：</p>
+<ul>
+<li><code>sequential consistency</code>保证了所有原子操作在所有线程之间是顺序一致的。可以把一个<code>sequential consistency</code>的原子操作看做一个<code>fence</code>，在做乱序优化的时候，前后的指令不可以跨越<code>fence</code>。同时，保证不同现成可以看到这些原子操作是一致的顺序。</li>
+<li><code>acquire release ordering</code>可以看做是单向的<code>fence</code>，在做乱序优化的时候，标记<code>acquire</code>的原子操作之后的指令不可以被移动到<code>acquire</code>操作之前；<code>release</code>原子操作之前的指令不可以被移动到<code>release</code>操作之后。需要注意的是，不同线程看到的原子操作之间的顺序可能是不一致的（可能是由于某些Processor的cache还没写入内存等原因）。</li>
+<li><code>relaxed ordering</code>仅仅保证操作的原子性，通常只用在单纯需要原子性的计数变量。</li>
+<li>还有一种<code>acquire ordering</code>的变化<code>consume ordering</code>，仅限制依赖于<code>consume ordering</code>原子操作取到的变量的相关指令不能移动到<code>consume ordering</code>操作之前，对其他指令没有限制。</li>
+</ul>
+</div><div class="tags"><a href="/tags/CPP/">CPP</a><a href="/tags/Multithreading/">Multithreading</a></div><div class="post-nav"><a href="/2015/09/01/reactivecocoa3-basic/" class="next">ReactiveCocoa 3.0 初步<i class="icon-next"></i></a></div><div id="disqus_thread"><script>var disqus_shortname = 'nightfade';
+var disqus_identifier = '2015/09/15/cpp1x-atomic/';
+var disqus_title = '多线程内存模型和C++1x Atomic';
+var disqus_url = 'http://nightfade.github.io/2015/09/15/cpp1x-atomic/';
+(function() {
+  var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+})();</script><script id="dsq-count-scr" src="//nightfade.disqus.com/count.js" async></script></div></div></div></div><div class="pure-u-1-4"><div id="sidebar"><div class="widget"><form action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank" class="search-form"><input type="text" name="q" maxlength="20" placeholder="Search" class="search-form-input"/><input type="hidden" name="sitesearch" value="http://nightfade.github.io"/></form></div><div class="widget"><div class="widget-title">分类</div><ul class="category-list"></ul></div><div class="widget"><div class="widget-title">标签</div><div class="tagcloud"><a href="/tags/Tools/" style="font-size: 15px;">Tools</a> <a href="/tags/iOS/" style="font-size: 15px;">iOS</a> <a href="/tags/Python/" style="font-size: 15px;">Python</a> <a href="/tags/Operating-System/" style="font-size: 15px;">Operating System</a> <a href="/tags/CMake/" style="font-size: 15px;">CMake</a> <a href="/tags/CPP/" style="font-size: 15px;">CPP</a> <a href="/tags/Multithreading/" style="font-size: 15px;">Multithreading</a> <a href="/tags/Swift/" style="font-size: 15px;">Swift</a> <a href="/tags/ReactiveCocoa/" style="font-size: 15px;">ReactiveCocoa</a> <a href="/tags/database/" style="font-size: 15px;">database</a> <a href="/tags/SQLite/" style="font-size: 15px;">SQLite</a> <a href="/tags/HLS/" style="font-size: 15px;">HLS</a> <a href="/tags/qiniu/" style="font-size: 15px;">qiniu</a> <a href="/tags/node/" style="font-size: 15px;">node</a> <a href="/tags/GameDev/" style="font-size: 15px;">GameDev</a> <a href="/tags/Actor/" style="font-size: 15px;">Actor</a> <a href="/tags/protobuf/" style="font-size: 15px;">protobuf</a> <a href="/tags/RPC/" style="font-size: 15px;">RPC</a> <a href="/tags/Network/" style="font-size: 15px;">Network</a></div></div><div class="widget"><div class="widget-title">最新文章</div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2015/09/15/cpp1x-atomic/">多线程内存模型和C++1x Atomic</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/09/01/reactivecocoa3-basic/">ReactiveCocoa 3.0 初步</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/28/notes-on-using-swift-with-cocoa-and-objective-c/">《Using Swift with Cocoa and Objective-C》学习笔记</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/12/ios-promise/">iOS开发中的Promise模式</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/09/ios-in-app-purchase/">iOS应用内购买IAP接入</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/02/sql-summary/">SQLite中的常用SQL语法、锁机制和WAL</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/06/26/ios-markdown-rendering/">iOS开发中的Markdown渲染</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/06/24/dynamic-height-cell/">可变高度的UITableViewCell</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/05/10/qiniu-hls/">使用七牛云存储实现HLS在线视频授权播放</a></li><li class="post-list-item"><a class="post-list-link" href="/2013/12/20/actor-model-and-game-development/">关于Actor模型与游戏编程的一点想法</a></li></ul></div><div class="widget"><div class="widget-title">最近评论</div><script type="text/javascript" src="//nightfade.disqus.com/recent_comments_widget.js?num_items=5&amp;hide_avatars=1&amp;avatar_size=32&amp;excerpt_length=20&amp;hide_mods=1"></script></div><div class="widget"><div class="widget-title">友情链接</div></div></div></div></div><div id="footer">© <a href="/." rel="nofollow">Nightfade's Techlog.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div><a id="rocket" href="#top" class="show"></a><script src="/js/jquery.min.js" type="text/javascript"></script>
+<script src="/js/totop.js" type="text/javascript"></script><script src="/js/fancybox.pack.js" type="text/javascript"></script>
+<script src="/js/jquery.fancybox.js" type="text/javascript"></script><link rel="stylesheet" href="/css/jquery.fancybox.css" type="text/css"></div></body></html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description"><title>Notes on Protected Mode | Nightfade's Techlog</title><link rel="stylesheet" type="text/css" href="/css/normalize.css"><link rel="stylesheet" type="text/css" href="/css/pure-min.css"><link rel="stylesheet" type="text/css" href="/css/grids-responsive-min.css"><link rel="stylesheet" type="text/css" href="/css/style.css"><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><link rel="alternate" type="application/atom+xml" href="/atom.xml"></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">Notes on Protected Mode</h1><a id="logo" href="/.">Nightfade's Techlog</a><p class="description"></p></div><div id="nav-menu"><a href="/." class="current"><i class="icon-home"> 首页</i></a><a href="/archives/"><i class="icon-archive"> 归档</i></a><a href="/about/"><i class="icon-about"> 关于</i></a><a href="/atom.xml"><i class="icon-rss"> 订阅</i></a></div></div><div id="layout" class="pure-g"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post post-page"><h1 class="post-title">Notes on Protected Mode</h1><div class="post-meta">Dec 7 2013 | </div><span data-disqus-identifier="2013/12/07/notes-on-protected-mode/" class="disqus-comment-count"></span><div class="post-content"><p>在IA32下，CPU有两种工作模式：实模式和保护模式。两种模式都使用<code>Segment:Offset</code>的方式进行寻址。但是两种模式下，段和偏移的含义是完全不一样的。</p>
+<h3 id="u5B9E_u6A21_u5F0F"><a href="#u5B9E_u6A21_u5F0F" class="headerlink" title="实模式"></a>实模式</h3><p>计算机启动之后首先进入实模式。在实模式下遵循<code>Intel8086</code>的16位CPU模式，具有16位寄存器，16位数据总线，<em>20位地址总线</em>。<strong>物理地址</strong>遵循如下计算公式：</p>
+<pre><code>Physical_Address = Segment &lt;&lt; 4 + Offset
+</code></pre><h3 id="u4FDD_u62A4_u6A21_u5F0F"><a href="#u4FDD_u62A4_u6A21_u5F0F" class="headerlink" title="保护模式"></a>保护模式</h3><p>保护模式工作在<code>Intel80386</code>之后的CPU上。在保护模式下我们有32位地址线，和32位寄存器，单纯使用一个寄存器就可以寻址4GB的空间。但是在保护模式下，寻址方式依然采用<code>Segment:Offset</code>的方式，但是此时的段和偏移的含义与实模式是完全不同的。<em>此时的段和偏移仅仅作为索引指向内存中的一个数据结构的一个表项</em>。这个数据结构称为<strong>GDT(Global Descriptor Table)</strong>。GDT可为系统提供<em>段式存储机制</em>。</p>
+<p>以下是《Orange’s 一个操作系统的实现》中一个GDT表的样例：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">; usage: Descriptor Base, Limit, Attr&#10;;&#9;&#9; Base: dd&#10;;&#9;&#9; Limit: dd (low 20 bits available)&#10;;&#9;&#9; Attr: dw&#10;%macro Descriptor 3&#10;&#9;dw&#9;%2&#9;&#38;&#9;0FFFFh&#10;&#9;dw&#9;%1&#9;&#38;&#9;0FFFFh&#10;&#9;db&#9;(%1&#9;&#62;&#62; 16) &#38; 0FFh&#10;&#9;dw&#9;((%2 &#62;&#62; 8) &#38; 0F00h) | (%3 &#38; 0F0FFh)&#10;&#9;db&#9;(%1&#9;&#62;&#62; 24) &#38; 0FFh&#10;%endmacro&#10;&#10;[Section .gdt]&#10;&#10;LABEL_GDT:         Descriptor        0,                 0,            0&#10;LABEL_DESC_CODE32: Descriptor        0,  SegCode32Len - 1, DA_C + DA_32&#10;LABEL_DESC_VIDEO:  Descriptor  0B8000h,            0ffffh,       DA_DRW&#10;&#10;GdtLen  equ&#9;$ - LABEL_GDT&#10;GdtPtr  dw  GdtLen - 1&#10;           dd  0&#10;&#10;SelectorCode32&#9;equ&#9;LABEL_DESC_CODE32&#9;- LABEL_GDT&#10;SelectorVideo&#9;equ&#9;LABEL_DESC_VIDEO&#9;- LABEL_GDT&#10;; END of [SECTION .gdt]</span><br></pre></td></tr></table></figure>
+<p>概括来说，GDT的每个表项用三部分内容描述一个段：段基址，段界限，段属性。</p>
+<p><code>GdtPtr</code>的48位内存用来指向GDT，其结构为：<code>[32位基地址|16位界限]</code>。可通过指令<code>lgdt [GdtPtr]</code>加载到48位寄存器<code>gdtr</code>。</p>
+<p>代码中<code>Selector*</code>称作选择子，当选择子低位的TI位是0的时候可以简单看做是表项在GDT中的偏移索引，后续可以被加载到段寄存器中，与<code>gdtr</code>寄存器中得GDT基址一起来定位一个段。否则就是LDT中的一个表项。</p>
+<p>此时<code>Segment:Offset</code>构成一个<strong>逻辑地址</strong>。段机制将逻辑地址（Logical Address）转化成线性地址（Linear Address）的基本过程如下：</p>
+<ol>
+<li>首先由段寄存器中存储的Segment(也是就一个Seletor)与<code>gdtr</code>存储的GDT表项的基址定位到GDT中的段表项.</li>
+<li>之后由该表项中的段基址与Offset定位到线性地址空间。</li>
+</ol>
+<h3 id="u6A21_u5F0F_u5207_u6362"><a href="#u6A21_u5F0F_u5207_u6362" class="headerlink" title="模式切换"></a>模式切换</h3><p>从实模式切换到保护模式，有两个关键的位需要设置。</p>
+<ol>
+<li><p>设置A20地址线位：8086下只有20位地址线，如果试图访问超过1M的地址，则会对地址进行回卷。80286之后可以访问到得地址空间更大，但是为了兼容8086，则用A20地址位来控制访问超过1M的地址空间时是否对地址进行回卷。</p>
+</li>
+<li><p><code>cr0</code>寄存器的第0位。当该位为0时，CPU工作在实模式，否则工作在保护模式。保护模式下，所有寻址相关的指令，都使用<em>逻辑地址</em>的寻址方式，而不再是实模式下的<em>物理地址</em>的寻址方式。</p>
+</li>
+</ol>
+<h3 id="u63CF_u8FF0_u7B26_u5C5E_u6027"><a href="#u63CF_u8FF0_u7B26_u5C5E_u6027" class="headerlink" title="描述符属性"></a>描述符属性</h3><p>在GDT表项中，每一个段描述符都有其属性描述位，保护模式也正是依赖这些属性实现操作系统的代码权限的保护及内存管理。例如：</p>
+<ul>
+<li>P位（Present）表示该段是否在内存中存在。</li>
+<li>DPL特权级（Descriptor Privilege Level）描述了该段代码的特权级别。</li>
+<li>S位指明描述符是数据段/代码段，还是系统段/门描述符。</li>
+<li>TYPE描述了该段的类型（读写，只读，只执行，一致代码段等）。</li>
+</ul>
+<p>转移到一致代码段的时候，当前的特权级会延续下去。通过<code>call</code>或<code>jmp</code>指令在不同特权级代码段之间跳转的规则如下：</p>
+<table><br>    <tr> <td>【目标代码段】</td> <td>【低→高】</td> <td>【高→低】</td> <td>【相同特权级】</td> <td>【适用何种代码】</td> </tr><br>    <tr> <td>一致代码段</td> <td>YES</td> <td>NO</td> <td>YES</td> <td>不访问受保护的资源的系统代码</td> </tr><br>    <tr> <td>非一致代码段</td> <td>NO</td> <td>NO</td> <td>YES</td> <td>避免低特权程序访问的系统代码</td> </tr><br>    <tr> <td>数据段（总是非一致）</td> <td>NO</td> <td>YES</td> <td>YES</td> <td>-</td> </tr><br></table>
+
+
+<h3 id="u95E8_u63CF_u8FF0_u7B26"><a href="#u95E8_u63CF_u8FF0_u7B26" class="headerlink" title="门描述符"></a>门描述符</h3><p>门描述符描述了一个由一个选择子和一个偏移地址所指定的线性地址，程序可以通过这个地址进行转移。通过调用门可以实现从第特权级到高特权级的转移，无论代码段是一致的还是非一致的。</p>
+<p>假设代码A通过一个调用门G转移到代码B，即调用门G中的目标选择子指向代码B的段。需要涉及到：CPL、RPL、代码B的DPL_B、调用门G的DPL_G。</p>
+<ol>
+<li>当A访问G的调用门时，规则相当于访问一个数据段，要求CPL和RPL特权级都不低于DPL_G。</li>
+<li>系统还比较CPL和DPL_B，如果是一致代码段，则要求DPL_B特权级不低于CPL；如果是非一致特权级，调用<code>call</code>指令要求DPL_B特权级不低于CPL，调用<code>jmp</code>指令要求DPL_B特权级与CPL相同。</li>
+</ol>
+<p>注意对比描述符属性中直接跳转的权限规则。会发现这里可以由低权限代码跳转到高权限的非一致代码段，而直接跳转是不允许的。同时，调用门也只能实现特权级由低到高的转移。</p>
+<h3 id="u7279_u6743_u7EA7_u89C4_u5219"><a href="#u7279_u6743_u7EA7_u89C4_u5219" class="headerlink" title="特权级规则"></a>特权级规则</h3><p>处理器通过CPL、DPL、RPL三种特权级进行特权级检验。</p>
+<ol>
+<li><strong>CPL(Current Privilege Level)</strong> CPL是当前执行的程序或任务的特权级，存储在<code>cs</code>和<code>ss</code>的第0位和第1位。通常情况下CPL等于代码段所在段的特权级，当程序转移到不同的特权级代码段时，处理器将改变CPL。<em>但是当跳转到一个一致代码段时，CPL不会改变。</em></li>
+</ol>
+<ol>
+<li><p><strong>DPL(Descriptor Privilege Level)</strong> DPL表示段或门的特权级，存储在段或门的描述符字段中。当代码尝试访问一个段或者门时，DPL将与CPL或门选择子的RPL比较，以判断是否可以访问。</p>
+</li>
+<li><p><strong>RPL(Requested Privilege Level)</strong> RPL存储在选择子（一个段可以有多个选择子）的第0位和第1位。处理器通过检查RPL和CPL确认访问请求是否合法，在判断权限时，取RPL和CPL中权限最低的那个。</p>
+</li>
+</ol>
+<p>程序从一个代码段转移到另外一个代码段之前，目标代码段的选择子会被加载到<code>cs</code>中。在加载过程中，处理器会检查描述符的界限、类型、特权级等内容。检验成功后<code>cs</code>才会被加载。</p>
+<p>通过<code>jmp</code>或<code>call</code>可实现的四种转移：</p>
+<ol>
+<li>目标操作数包含目标代码段的段选择子。</li>
+<li>目标操作数指向一个包含目标代码段的选择子的<strong>调用门描述符</strong>。</li>
+<li>目标操作数指向一个包含目标代码段选择子的<strong>TSS(Task-State Stack)</strong>。</li>
+<li>目标操作数指向一个<strong>任务门</strong>，这个任务门指向一个包含目标代码段选择子的TSS。</li>
+</ol>
+<h3 id="u7279_u6743_u7EA7_u8F6C_u79FB"><a href="#u7279_u6743_u7EA7_u8F6C_u79FB" class="headerlink" title="特权级转移"></a>特权级转移</h3><p>特权级转移的同时，堆栈也要随之变化，以避免高特权级的过程受到干扰。<code>jmp</code>指令仅仅涉及指令跳转，而<code>call</code>指令会影响堆栈。在段内跳转时，只要将参数和调用者的<code>eip</code>入栈即可。而段间跳转涉及到得还有cs的入栈，以及特权级变化的时候相应堆栈的切换。一个任务之多可以在4个特权级之间切换，因此需要4个堆栈，当特权级发生转移时，堆栈内的入栈参数会复制到目标特权级对应的堆栈中。</p>
+<p><strong>TSS（Task-State Stack）</strong>是一个数据结构，可以记录一个任务不同特权级的<code>ss</code>和<code>esp</code>地址。</p>
+<p>整个转移过程CPU所做的工作如下：</p>
+<ol>
+<li>根据目标代码段的DPL（新的CPL）从TSS中选择应该切换到哪个<code>ss</code>和<code>esp</code>。</li>
+<li>从TSS中读取新的<code>ss</code>和<code>esp</code>，并检验是否越界等。</li>
+<li>暂时保存当前<code>ss</code>和<code>esp</code>，并加载新<code>ss</code>和<code>esp</code>。</li>
+<li>将刚刚保存起来的<code>ss</code>和<code>esp</code>压栈。</li>
+<li>从调用者堆栈中将参数复制到被调用者的堆栈。</li>
+<li>将当前<code>cs</code>和<code>eip</code>压栈。</li>
+<li>加载调用门中指定的<code>cs</code>和<code>eip</code>，并开始执行被调用者过程。</li>
+</ol>
+<p>与<code>call</code>对应的<code>ret</code>过程也同样涉及相同的过程，CPU的工作包括：</p>
+<ol>
+<li>检查<strong>保存的<code>cs</code>中的RPL</strong>以判断返回时是否需要变换特权级。</li>
+<li>加载被调用者堆栈上的<code>cs</code>和<code>eip</code>（此时会进行代码段描述符和选择子类型和特权级检验）。</li>
+<li>如果ret指令含有参数，则增加<code>esp</code>的值以跳过参数。然后<code>esp</code>指向被保存过的调用者<code>ss</code>和<code>esp</code>。</li>
+<li>加载<code>ss</code>和<code>esp</code>，切换到调用者堆栈。并检查ss描述符、ds、es、fs、gs等得值，如果某个寄存器指向的段的DPL小于CPL，则置空。</li>
+</ol>
+<h3 id="u9875_u5F0F_u5B58_u50A8"><a href="#u9875_u5F0F_u5B58_u50A8" class="headerlink" title="页式存储"></a>页式存储</h3><p>页式存储是由CPU的保护模式支持的。前面已经说到保护模式下，由<code>Segment:Offset</code>描述了逻辑地址，再经过段机制将其转换为线性地址。在未打开分页机制时，线性地址等同于物理地址。但是当分页开启时，线性地址要通过分页机制才能转化为物理地址。分页机制是否生效的开关位于<code>cr0</code>寄存器的PG位。</p>
+<p>正如以往操作系统教材里描述的，使用两级页表来进行线性地址到物理地址的变换。第一级称作页目录其表项称为PDE(Page Directory Entry)；第二级为页表，其表项称为（Page Table Entry）。</p>
+<p>进行转换时，首先由<code>cr3</code>指定的页目录中根据线性地址的高10位得到页表地址，之后在页表中根据线性地址的12到21位得到物理页首地址，将这个首地址加上线性地址的低12位便得到了物理地址。</p>
+<p>利用CPU提供的页式存储机制，操作系统才能够为进程统一的提供<strong>互不干扰的线性地址</strong>，并且无需考虑物理内存在不同平台下得差异。在进程切换的时候，只需要更改<code>cr3</code>切换对应的页表即可。</p>
+<h3 id="u4E2D_u65AD_u4E0E_u5F02_u5E38"><a href="#u4E2D_u65AD_u4E0E_u5F02_u5E38" class="headerlink" title="中断与异常"></a>中断与异常</h3><p>保护模式下的中断与实模式下也不同，实模式下得中断向量表和BIOS中断在保护模式下都不可用。保护模式下通过<strong>IDT(Interrupt Descriptor Table)</strong>实现中断调用。中断门和陷阱门都是特殊的调用门，作用机理几乎一样，只是由中断和异常触发而非<code>call</code>指令。</p>
+<h3 id="u4FDD_u62A4_u6A21_u5F0F_u5C0F_u7ED3"><a href="#u4FDD_u62A4_u6A21_u5F0F_u5C0F_u7ED3" class="headerlink" title="保护模式小结"></a>保护模式小结</h3><ol>
+<li>在GDT、LDT以及IDT中，每个描述符都有自己的界限和属性，对描述符所描述的对象进行了限定和保护。</li>
+<li>分页机制的PDE和PTE包含的R/W和U/S等提供了页级的保护。</li>
+<li>页式存储的使用使得应用程序使用的是线性地址空间而不是物理地址，保护了物理内存，也避免了程序之间的相互干扰。</li>
+<li>中断也提供了特权检验等内容。</li>
+<li>I/O指令也不再随便使用，提供了端口的保护。</li>
+<li>不同特权级之间的切换伴随着CPL、PRL、DPL、IOPL等检验，同时伴随堆栈切换，对不同层级的程序进行了保护。</li>
+</ol>
+<p>操作系统所能提供的大多保护其实都是依赖于处理器的硬件才能实现的。</p>
+</div><div class="tags"><a href="/tags/Operating-System/">Operating System</a></div><div class="post-nav"><a href="/2013/12/07/building-cross-platform-project-using-cmake/" class="pre"><i class="icon-previous">Building Cross-platform Project Using CMake</i></a></div><div id="disqus_thread"><script>var disqus_shortname = 'nightfade';
+var disqus_identifier = '2013/12/07/notes-on-protected-mode/';
+var disqus_title = 'Notes on Protected Mode';
+var disqus_url = 'http://nightfade.github.io/2013/12/07/notes-on-protected-mode/';
+(function() {
+  var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+})();</script><script id="dsq-count-scr" src="//nightfade.disqus.com/count.js" async></script></div></div></div></div><div class="pure-u-1-4"><div id="sidebar"><div class="widget"><form action="//www.google.com/search" method="get" accept-charset="utf-8" target="_blank" class="search-form"><input type="text" name="q" maxlength="20" placeholder="Search" class="search-form-input"/><input type="hidden" name="sitesearch" value="http://nightfade.github.io"/></form></div><div class="widget"><div class="widget-title">分类</div><ul class="category-list"></ul></div><div class="widget"><div class="widget-title">标签</div><div class="tagcloud"><a href="/tags/Tools/" style="font-size: 15px;">Tools</a> <a href="/tags/iOS/" style="font-size: 15px;">iOS</a> <a href="/tags/Python/" style="font-size: 15px;">Python</a> <a href="/tags/Operating-System/" style="font-size: 15px;">Operating System</a> <a href="/tags/CMake/" style="font-size: 15px;">CMake</a> <a href="/tags/CPP/" style="font-size: 15px;">CPP</a> <a href="/tags/Multithreading/" style="font-size: 15px;">Multithreading</a> <a href="/tags/Swift/" style="font-size: 15px;">Swift</a> <a href="/tags/ReactiveCocoa/" style="font-size: 15px;">ReactiveCocoa</a> <a href="/tags/database/" style="font-size: 15px;">database</a> <a href="/tags/SQLite/" style="font-size: 15px;">SQLite</a> <a href="/tags/HLS/" style="font-size: 15px;">HLS</a> <a href="/tags/qiniu/" style="font-size: 15px;">qiniu</a> <a href="/tags/node/" style="font-size: 15px;">node</a> <a href="/tags/GameDev/" style="font-size: 15px;">GameDev</a> <a href="/tags/Actor/" style="font-size: 15px;">Actor</a> <a href="/tags/protobuf/" style="font-size: 15px;">protobuf</a> <a href="/tags/RPC/" style="font-size: 15px;">RPC</a> <a href="/tags/Network/" style="font-size: 15px;">Network</a></div></div><div class="widget"><div class="widget-title">最新文章</div><ul class="post-list"><li class="post-list-item"><a class="post-list-link" href="/2015/09/15/cpp1x-atomic/">多线程内存模型和C++1x Atomic</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/09/01/reactivecocoa3-basic/">ReactiveCocoa 3.0 初步</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/28/notes-on-using-swift-with-cocoa-and-objective-c/">《Using Swift with Cocoa and Objective-C》学习笔记</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/12/ios-promise/">iOS开发中的Promise模式</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/09/ios-in-app-purchase/">iOS应用内购买IAP接入</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/08/02/sql-summary/">SQLite中的常用SQL语法、锁机制和WAL</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/06/26/ios-markdown-rendering/">iOS开发中的Markdown渲染</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/06/24/dynamic-height-cell/">可变高度的UITableViewCell</a></li><li class="post-list-item"><a class="post-list-link" href="/2015/05/10/qiniu-hls/">使用七牛云存储实现HLS在线视频授权播放</a></li><li class="post-list-item"><a class="post-list-link" href="/2013/12/20/actor-model-and-game-development/">关于Actor模型与游戏编程的一点想法</a></li></ul></div><div class="widget"><div class="widget-title">最近评论</div><script type="text/javascript" src="//nightfade.disqus.com/recent_comments_widget.js?num_items=5&amp;hide_avatars=1&amp;avatar_size=32&amp;excerpt_length=20&amp;hide_mods=1"></script></div><div class="widget"><div class="widget-title">友情链接</div></div></div></div></div><div id="footer">© <a href="/." rel="nofollow">Nightfade's Techlog.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div><a id="rocket" href="#top" class="show"></a><script src="/js/jquery.min.js" type="text/javascript"></script>
+<script src="/js/totop.js" type="text/javascript"></script><script src="/js/fancybox.pack.js" type="text/javascript"></script>
+<script src="/js/jquery.fancybox.js" type="text/javascript"></script><link rel="stylesheet" href="/css/jquery.fancybox.css" type="text/css"></div></body></html>

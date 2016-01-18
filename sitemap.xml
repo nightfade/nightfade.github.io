@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/05/10/qiniu-hls/</loc>
+    <lastmod>2016-01-18T08:12:15.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/09/15/cpp1x-atomic/</loc>
+    <lastmod>2016-01-18T08:04:26.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/09/01/reactivecocoa3-basic/</loc>
+    <lastmod>2016-01-18T08:04:20.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/08/28/notes-on-using-swift-with-cocoa-and-objective-c/</loc>
+    <lastmod>2016-01-18T08:04:15.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/08/12/ios-promise/</loc>
+    <lastmod>2016-01-18T08:04:10.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/08/09/ios-in-app-purchase/</loc>
+    <lastmod>2016-01-18T08:04:06.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/08/02/sql-summary/</loc>
+    <lastmod>2016-01-18T08:04:02.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/06/26/ios-markdown-rendering/</loc>
+    <lastmod>2016-01-18T08:03:56.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2015/06/24/dynamic-height-cell/</loc>
+    <lastmod>2016-01-18T08:03:53.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2013/12/20/actor-model-and-game-development/</loc>
+    <lastmod>2016-01-18T08:03:37.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2013/12/15/implement-an-asynchronous-rpc-basing-on-protocol-buffers/</loc>
+    <lastmod>2016-01-18T08:03:26.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2013/12/13/dive-into-protocol-buffers-python-api/</loc>
+    <lastmod>2016-01-18T08:03:17.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2013/12/12/python-meta-programming/</loc>
+    <lastmod>2016-01-18T08:03:09.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2013/12/07/notes-on-protected-mode/</loc>
+    <lastmod>2016-01-18T08:03:05.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/2013/12/07/building-cross-platform-project-using-cmake/</loc>
+    <lastmod>2016-01-18T08:02:41.000Z</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://nightfade.github.io/about/index.html</loc>
+    <lastmod>2016-01-18T05:08:19.000Z</lastmod>
+  </url>
+  
+</urlset>
