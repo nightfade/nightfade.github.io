@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title><![CDATA[Nightfade's Techlog]]></title>
-  
+  <subtitle><![CDATA[Programming]]></subtitle>
   <link href="/atom.xml" rel="self"/>
   <link href="http://nightfade.github.io/"/>
   <updated>2016-01-18T08:04:26.000Z</updated>
